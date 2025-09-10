@@ -1,0 +1,97 @@
+#to run CAFE for gene expansion and contraction analysis
+#1) construct an altimetric tree. 
+#Methods: use r8s with required inputs including species tree, the number of sites used to construct the tree, and a time calibration. 
+
+
+#I copyed Phyling or otherfinder trees and Orthogroups.GeneCount.tsv file and created pseudo links to alignement files in the cafe folder.
+#Alinements for phyling: concat_alignments.mfa; Alignments for orthorfinder: 
+#phyling tree: ufboot.contree (rooted phyling tree using figtree and re-imported them as ufboot.contree.txt); orthofinder tree: SpeciesTreeAlignment.fa
+cd ~/bigdata/stajichlab/xinzhanl/Comparative_genomes/cafe/input/
+ln -s /bigdata/stajichlab/xinzhanl/Comparative_genomes/phyling_20_strains_new/phyling-tree-20250330-041144/concat_alignments.mfa ./
+ln -s /bigdata/stajichlab/xinzhanl/Comparative_genomes/OrthoFinder_diamond/Results_Apr16/MultipleSequenceAlignments/SpeciesTreeAlignment.fa ./ 
+rsync -a /bigdata/stajichlab/xinzhanl/Comparative_genomes/phyling_20_strains_new/phyling-tree-20250330-041144/iqtree/ufboot.contree ./
+rsync -a /bigdata/stajichlab/xinzhanl/Comparative_genomes/OrthoFinder_diamond/Results_Apr16/Species_Tree/SpeciesTree_rooted_node_labels.txt ./
+rsync -a /bigdata/stajichlab/xinzhanl/Comparative_genomes/OrthoFinder_diamond/Results_Apr16/Orthogroups/Orthogroups.GeneCount.tsv ./ 
+
+
+#to get the number of sites (you want the "Alignment length" here): 
+#Alignment used in phyling 
+module load hmmer
+esl-alistat concat_alignments.mfa
+
+@Alignment number:    1
+@Format:              aligned FASTA
+@Number of sequences: 23
+@Alignment length:    586987
+@Total # residues:    10635610
+@Smallest:            404256
+@Largest:             482311
+@Average length:      462417.8
+@Average identity:    54%
+
+#Alignment used in orthofinder (-MSA) 
+#cd ~/bigdata/stajichlab/xinzhanl/Comparative_genomes/OrthoFinder_diamond/Results_April16/MultipleSequenceAlignments/SpeciesTreeAlignment.fa
+module load hmmer
+esl-alistat SpeciesTreeAlignment.fa
+
+@Alignment number:    1
+@Format:              aligned FASTA
+@Number of sequences: 23
+@Alignment length:    1453021
+@Total # residues:    31890456
+@Smallest:            1273865
+@Largest:             1423809
+@Average length:      1386541.6
+@Average identity:    70%
+
+
+#to get the time calibration to scale branch lengths to time units use: http://www.timetree.org/ or from literature
+#Two nodes with fixed age are ascertained from the paper "Phylogenomics, divergence times and notes of orders in Basidiomycota" (check r8s ctl file)
+
+#Prepared the r8s control file "1_r8s_in.txt" as follows:
+#nexus
+begin trees;
+tree tree_1 = (((Sporobolomyces_roseus_Y8:0.03893,Sporobolomyces_roseus_SR19:0.03777)N3:0.10512,Sporidiobolus_pararoseus_NGR:0.14537)N1:0.165065,((((Rhodotorula_araucariae_NRRL_Y-17376:0.07888,Rhodotorula_kratochvilovae_Y14:0.05167)N9:0.06055,((Rhodotorula_diobovata_NRRL_Y-7196:0.08564,((Rhodotorula_graminis_NRRL_Y-2474:0.03641,Rhodotorula_glutinis_CBS_20:0.03016)N20:0.0094,(Rhodotorula_graminis_JJ10.1:0.02942,Rhodotorula_babjevae_CBS_7808:0.0298)N21:0.0095)N18:0.08298)N14:0.01867,Rhodotorula_evergladensis_DBVPG_7922:0.14816)N10:0.05893)N6:0.0868,Rhodotorula_paludigena_NRRL_Y-12923:0.17605)N4:0.06256,((Rhodotorula_toruloides_NBRC10032:0.05379,(Rhodotorula_toruloides_CBS14:0.02349,(Rhodotorula_toruloides_JCM_24501:0.02084,Rhodotorula_toruloides_NBRC_0880:0.0168)N15:0.00409)N11:0.01599)N7:0.18041,(((Rhodotorula_glutinis_QYH-2023:0.03883,Rhodotorula_taiwanensis_MD1149:0.04331)N16:0.10208,Rhodotorula_sphaerocarpa_NRRL_Y-7192:0.16345)N12:0.03465,(Rhodotorula_dairenensis_NRRL_Y-2504:0.10886,(Rhodotorula_aff_mucilaginosa_JY1105:0.02706,(Rhodotorula_mucilaginosa_NRRL_Y-2510:0.02358,Rhodotorula_frigidialcoholis_JG-1b:0.0241)N19:0.00717)N17:0.05989)N13:0.06641)N8:0.19401)N5:0.0379)N2:0.165065)N0;
+end;
+
+begin r8s;
+blformat lengths=persite nsites=1453021;
+collapse;
+fixage taxon=N0 age=111;
+fixage taxon=N1 age=44;
+set seed=3 num_time_guesses=3 num_restarts=3 maxiter=3000 verbose=0 
+smoothing=100;
+divtime method=PL algorithm=TN;
+
+
+describe plot=cladogram;
+describe plot=chrono_description;
+describe plot=tree_description;
+describe plot=phylo_description
+describe plot=rato_description
+showage; showage;
+end;
+
+
+#run r8s
+module load r8s
+r8s -b -f 1_r8s_in.txt > 1_r8s_out.txt
+
+#extract the calibrated tree from the file "1_r8s_out.txt" mannually, and save it as "r8s_out_tree.txt".
+
+#run cafe5
+#cafe5 -i /bigdata/stajichlab/xinzhanl/Comparative_genomes/cafe/input/Orthogroups.GeneCount.tsv -t /bigdata/stajichlab/xinzhanl/Comparative_genomes/cafe/r8s/r8s_out_tree.txt -o results 
+
+#create a new env to install cafe v4 with python 2.7, because cafe's supplementary py scripts were supported by python 2.7
+conda create -n cafe_v4_py27 python=2.7
+conda activate cafe_v4_py27
+
+
+
+
+
+
+
+
+#run cafeplotter
+cafeplotter -i results -o cafeplot_output
